@@ -1,23 +1,26 @@
+import { v4 as uuidv4 } from 'uuid';
 import { InMemoryUsersRepository } from '../../../users/repositories/in-memory/InMemoryUsersRepository';
 import { IUsersRepository } from '../../../users/repositories/IUsersRepository';
 import { CreateUserUseCase } from '../../../users/useCases/createUser/CreateUserUseCase';
 import { InMemoryStatementsRepository } from '../../repositories/in-memory/InMemoryStatementsRepository';
 import { IStatementsRepository } from '../../repositories/IStatementsRepository';
-import { CreateStatementError } from './CreateStatementError';
-import { CreateStatementUseCase } from './CreateStatementUseCase';
+import { CreateStatementUseCase } from '../createStatement/CreateStatementUseCase';
+import { GetBalanceError } from './GetBalanceError';
+import { GetBalanceUseCase } from './GetBalanceUseCase';
+
 
 let usersRepository: IUsersRepository;
 let inMemoryStatementsRepository: IStatementsRepository;
 let createStatement: CreateStatementUseCase;
 let createUserUseCase: CreateUserUseCase;
+let getBalance: GetBalanceUseCase;
+
 
 enum OperationType {
     DEPOSIT = 'deposit',
     WITHDRAW = 'withdraw',
-  }
-
-describe("Create Statemeant",()=>{
-
+};
+describe("Get Balance",()=>{
     beforeEach(()=>{
         inMemoryStatementsRepository = new InMemoryStatementsRepository();
         usersRepository = new InMemoryUsersRepository();
@@ -28,48 +31,40 @@ describe("Create Statemeant",()=>{
         createUserUseCase = new CreateUserUseCase(
             usersRepository,
         );
+        getBalance = new GetBalanceUseCase(
+            inMemoryStatementsRepository,
+            usersRepository,
+        );
     });
-    it("should be able to make a deposit or withdraw operation", async()=>{
-        const statementOperation = jest.spyOn(inMemoryStatementsRepository, "create");
+    it("should be able to get Balance", async ()=> {
         const user =  await createUserUseCase.execute({
             name: "Test",
             email: "test@test.com",
             password: "123456",
         });
-        const statement = await createStatement.execute({
+        await createStatement.execute({
             user_id: user.id as string,
             type: OperationType.DEPOSIT,
             amount: 100.59,
             description: "A deposit",
         });
-
-        expect(statementOperation).toBeCalled();
-        expect(statement.type).toBe(OperationType.DEPOSIT);
-
-        const statement2 = await createStatement.execute({
+        await createStatement.execute({
             user_id: user.id as string,
             type: OperationType.WITHDRAW,
             amount: 100.59,
             description: "A withdraw",
         });
-
-        expect(statementOperation).toBeCalled();
-        expect(statement2.type).toBe(OperationType.WITHDRAW);
+        const balance = await getBalance.execute({
+            user_id: user.id as string,
+        });
+        expect(balance.statement.length).toBe(2);
+        expect(balance.balance).toBe(0);
     });
 
-    it("should be able to make a deposit or withdraw operation", async()=>{
-      
-        const user =  await createUserUseCase.execute({
-            name: "Test",
-            email: "test@test.com",
-            password: "123456",
-        });
-       await expect(createStatement.execute({
-            user_id: user.id as string,
-            type: OperationType.WITHDRAW,
-            amount: 100.59,
-            description: "A deposit",
-        })).rejects.toEqual(new CreateStatementError.InsufficientFunds());
-        
+    it("should not be able to get Balance if user not exists", async ()=> {
+        const user_id = uuidv4();
+        await expect(
+            getBalance.execute({user_id})).rejects.toEqual(new GetBalanceError()
+        );
     });
 });
